@@ -1,6 +1,6 @@
 {
   "name": "dsh-task-continuity",
-  "version": "1.0.3",
+  "version": "1.0.4",
   "description": "DSH task continuity: P0 post-compaction archive re-injection (MemGPT/Hippo style, stores only real user instructions) + P1 todo alarm (A no-list reminder / B stale-list nudge, Claude Code TodoWrite pattern). Merged from task-state + task-plan.",
   "type": "module",
   "main": "index.mjs",

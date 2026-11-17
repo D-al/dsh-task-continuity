@@ -2,6 +2,23 @@
 
 所有迭代以本地时间记录（UTC+8）。
 
+## [1.0.4] - 2026-11-18 00:20
+
+### Added（压缩存档按文献升级：决策/总结角色）
+- **【已排除】清单**：失败调用（工具名+参数+错误）去重记录（最多 6 条），随 P0 注入。
+  依据：opennash《Context Compaction》——"被拒绝的选项是价值最高、成本最低的信息，
+  也是叙事式摘要最先丢弃的"；egoistai——rejectedOptions 防止 agent 重试死路
+- **压缩后三问自检**："①我们要完成什么？②已经证明了什么？③下一个安全的动作是什么？"
+  依据：egoistai——新模型实例应能立刻回答这三个问题才是有效压缩
+- **compaction ledger**：每次压缩记录（ts/session/todos/completed/rejected/hasVerify）
+  → `_compaction_ledger.jsonl`，供 postmortem 追溯"摘要丢了什么"
+  （agentnative：compaction ledger 让压缩后故障可追溯到具体信息丢失）
+
+### Note（对照 JetBrains arXiv 2508.21433）
+- observation masking（清过期工具结果）优于纯摘要（-52% 成本 / +2.6% solve rate）——
+  dsh 的 `toolResultPruner` 已提供遮罩能力（isolate 配置中已开）
+- 触发点 0.55（54K）在社区 60-70% 建议带**下方**（更早更安全），保持不动
+
 ## [1.0.3] - 2026-11-17 23:35
 
 ### Changed（压缩存档升级）

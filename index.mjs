@@ -14,7 +14,7 @@
  */
 
 import { randomUUID } from 'node:crypto'
-import { writeFileSync } from 'node:fs'
+import { writeFileSync, appendFileSync } from 'node:fs'
 
 export const name = 'task-continuity'
 
@@ -36,7 +36,8 @@ const DEFAULTS = {
   maxTodoInjectionsPerSession: 4,
   messageNoTodo: '[harness 执行检查] 这是一个多步任务，但你还没有用 todo_write 建立任务清单。立即停下：先调用 todo_write 写出完整步骤清单（每条 = 动词 + 目标 + 完成标准，末尾加 [VERIFY] 验证项），把第一项标为 in_progress，然后按清单顺序执行。',
   messageStale: '[harness 执行检查] 你已经连续多步没有更新 todo 清单了。立即回到清单：把刚完成的项标为 completed，把下一项标为 in_progress，再继续执行。如果发现实际工作与清单偏离，先修订清单再继续。',
-  probePath: ''
+  probePath: '',
+  ledgerPath: 'D:/Brain/workspace/bench/_compaction_ledger.jsonl'
 }
 
 function normalizeConfig(raw) {
@@ -145,6 +146,26 @@ export function apply(ctx, config) {
           s.todoCalls += 1
           s.sinceLastTodo = 0
         }
+        // 记录最近调用（失败时用于"已排除"清单——rejected options 是压缩最易丢失的高价值信息）
+        s.lastCall = { name: String(event.data?.name ?? ''), args: String(event.data?.arguments ?? '').slice(0, 160) }
+        return
+      }
+      if (event.type === 'tool/result') {
+        try {
+          const txt = (Array.isArray(event.data?.message?.content) ? event.data.message.content : [])
+            .map((b) => (typeof b === 'object' && b?.text) ? b.text : '').join(' ')
+          const failed = txt.startsWith('Error:') || txt.startsWith('[stderr]') || txt.includes(': not found') || txt.includes('Traceback')
+          if (failed && s.lastCall) {
+            // 已排除的方案（去重，最多 6 条）
+            const item = `${s.lastCall.name}(${s.lastCall.args.slice(0, 90)}) → ${txt.slice(0, 80)}`
+            const key = item.slice(0, 120)
+            s.rejected = Array.isArray(s.rejected) ? s.rejected : []
+            if (!s.rejected.some((x) => x.key === key)) {
+              s.rejected.push({ key, text: item })
+              if (s.rejected.length > 6) s.rejected.shift()
+            }
+          }
+        } catch { /* ignore */ }
         return
       }
       if (event.type === 'todo/write') {
@@ -185,6 +206,26 @@ export function apply(ctx, config) {
           if (verifyItems.length) parts.push('【任务合同】' + verifyItems.map((t) => String(t.content).replace('[VERIFY]', '').trim()).join('；'))
           if (doneItems.length) parts.push('【已验证决策】' + doneItems.slice(0, 8).map((t) => String(t.content).slice(0, 40)).join('；'))
           if (openItems.length) parts.push('【开放问题】' + openItems.slice(0, 8).map((t) => (t?.status === 'in_progress' ? '◐' : '☐') + String(t.content).slice(0, 40)).join('；'))
+          // 已排除的方案（rejected options）——压缩最易丢失、价值最高的信息
+          // （opennash：被拒绝的选项是"最贵的信息"，叙事式摘要首先丢弃它；egoistai：rejectedOptions 防重试死路）
+          if (Array.isArray(s.rejected) && s.rejected.length) {
+            parts.push('【已排除】' + s.rejected.slice(-5).map((x) => x.text).join('\n'))
+          }
+          // 压缩后三问（egoistai：新实例应能立刻回答这三个问题）
+          parts.push('【压缩后自检】现在先回答三个问题再继续：①我们要完成什么？②已经证明了什么？③下一个安全的动作是什么？')
+          // compaction ledger：记录每次压缩（供 postmortem 追溯"摘要丢了什么"）
+          try {
+            if (cfg.ledgerPath) {
+              appendFileSync(cfg.ledgerPath, JSON.stringify({
+                ts: new Date().toISOString(),
+                session: String(agent.session?.id || '').slice(0, 8),
+                todos: (s.lastTodos || []).length,
+                completed: (s.lastTodos || []).filter((t) => t?.status === 'completed').length,
+                rejected: (s.rejected || []).length,
+                hasVerify: verifyItems.length,
+              }) + '\n')
+            }
+          } catch { /* ignore */ }
         } catch { /* ignore */ }
         s.pendingArchive = false
         info(`task-continuity: 压缩后重注入任务存档（初始 ${s.initial.length} 字 + 最新 ${s.latest.length} 字 + 合同/决策/开放项）`)
