@@ -170,12 +170,24 @@ export function apply(ctx, config) {
       const s = stateOf(agent.session?.id)
 
       // ── P0：压缩存档（最高优先级，天然一次压缩一次，不受闹钟预算限制）──
+      // 2026-11-17 升级（ARC ACL2026「context 是可修订的推理状态」/ U-Fold「永不丢弃、每次重建」）：
+      // 除初始任务+最新指令外，附带【任务合同】= todo 里的 [VERIFY] 验收项 +【已验证决策】=
+      // 已完成项——压缩后模型不必重新推断"做到哪/怎么算完成"。
       if (s.pendingArchive && s.initial) {
         const parts = [cfg.archiveHeader]
         parts.push(`【初始任务】${s.initial}`)
         if (s.latest && s.latest !== s.initial) parts.push(`【最新用户指令】${s.latest}`)
+        try {
+          const todos = Array.isArray(s.lastTodos) ? s.lastTodos : []
+          const verifyItems = todos.filter((t) => String(t?.content ?? '').includes('[VERIFY]'))
+          const doneItems = todos.filter((t) => t?.status === 'completed')
+          const openItems = todos.filter((t) => t?.status !== 'completed')
+          if (verifyItems.length) parts.push('【任务合同】' + verifyItems.map((t) => String(t.content).replace('[VERIFY]', '').trim()).join('；'))
+          if (doneItems.length) parts.push('【已验证决策】' + doneItems.slice(0, 8).map((t) => String(t.content).slice(0, 40)).join('；'))
+          if (openItems.length) parts.push('【开放问题】' + openItems.slice(0, 8).map((t) => (t?.status === 'in_progress' ? '◐' : '☐') + String(t.content).slice(0, 40)).join('；'))
+        } catch { /* ignore */ }
         s.pendingArchive = false
-        info(`task-continuity: 压缩后重注入任务存档（初始 ${s.initial.length} 字 + 最新 ${s.latest.length} 字）`)
+        info(`task-continuity: 压缩后重注入任务存档（初始 ${s.initial.length} 字 + 最新 ${s.latest.length} 字 + 合同/决策/开放项）`)
         return withMessage(decision, parts.join('\n'), 'task-continuity')
       }
 
