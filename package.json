@@ -1,6 +1,6 @@
 {
   "name": "dsh-task-continuity",
-  "version": "1.0.0",
+  "version": "1.0.1",
   "description": "DSH task continuity: P0 post-compaction archive re-injection (MemGPT/Hippo style, stores only real user instructions) + P1 todo alarm (A no-list reminder / B stale-list nudge, Claude Code TodoWrite pattern). Merged from task-state + task-plan.",
   "type": "module",
   "main": "index.mjs",
@@ -8,14 +8,31 @@
     ".": "./index.mjs",
     "./package.json": "./package.json"
   },
-  "files": ["index.mjs", "cordis.patch.yml"],
+  "files": [
+    "index.mjs",
+    "cordis.patch.yml"
+  ],
   "license": "MIT",
-  "keywords": ["deepseek-harness", "dsh", "dsh-plugin", "cordis", "memory", "todo", "continuity"],
-  "engines": { "node": ">=20" },
+  "keywords": [
+    "deepseek-harness",
+    "dsh",
+    "dsh-plugin",
+    "cordis",
+    "memory",
+    "todo",
+    "continuity"
+  ],
+  "engines": {
+    "node": ">=20"
+  },
   "dsh": {
     "displayName": "Task Continuity（任务连续性）",
     "description": "P0 压缩后任务存档重注入 + P1 todo 清单纪律闹钟——海马体与前额叶外置。",
-    "engines": { "dsh": ">=0.2.0-rc.2" },
-    "bundle": { "patch": "./cordis.patch.yml" }
+    "engines": {
+      "dsh": ">=0.2.0-rc.2"
+    },
+    "bundle": {
+      "patch": "./cordis.patch.yml"
+    }
   }
 }
