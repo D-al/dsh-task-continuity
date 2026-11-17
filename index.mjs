@@ -28,6 +28,11 @@ const DEFAULTS = {
   noTodoStepThreshold: 4,
   staleStepThreshold: 5,
   maxTodoInjectionsPerTurn: 1,
+  // P1.5 todo 回灌（Manus recitation / U-Fold / StateForge）：每次 todo_write 后
+  // 把完整清单"复述"到上下文最新位置——治"状态回卷/重问已答过的问题"
+  // （arXiv 2609.32520：意图漂移 0.476→0.384；Manus：rewrite the plan into the freshest slice）
+  todoEchoEnabled: true,
+  maxEchoItems: 12,
   maxTodoInjectionsPerSession: 4,
   messageNoTodo: '[harness 执行检查] 这是一个多步任务，但你还没有用 todo_write 建立任务清单。立即停下：先调用 todo_write 写出完整步骤清单（每条 = 动词 + 目标 + 完成标准，末尾加 [VERIFY] 验证项），把第一项标为 in_progress，然后按清单顺序执行。',
   messageStale: '[harness 执行检查] 你已经连续多步没有更新 todo 清单了。立即回到清单：把刚完成的项标为 completed，把下一项标为 in_progress，再继续执行。如果发现实际工作与清单偏离，先修订清单再继续。',
@@ -142,6 +147,17 @@ export function apply(ctx, config) {
         }
         return
       }
+      if (event.type === 'todo/write') {
+        // P1.5：记录完整清单，等下一次 pre-step 复述（recitation）
+        try {
+          const todos = Array.isArray(event.data?.todos) ? event.data.todos : null
+          if (todos && todos.length > 0) {
+            s.lastTodos = todos
+            s.pendingTodoEcho = true
+          }
+        } catch { /* ignore */ }
+        return
+      }
     } catch (error) {
       warn(`task-continuity: session/event 失败 ${String(error)}`)
     }
@@ -161,6 +177,23 @@ export function apply(ctx, config) {
         s.pendingArchive = false
         info(`task-continuity: 压缩后重注入任务存档（初始 ${s.initial.length} 字 + 最新 ${s.latest.length} 字）`)
         return withMessage(decision, parts.join('\n'), 'task-continuity')
+      }
+
+      // ── P1.5：todo 回灌（recitation）——每次 todo_write 后把完整清单复述到最新位置 ──
+      if (cfg.todoEchoEnabled && s.pendingTodoEcho && Array.isArray(s.lastTodos) && s.lastTodos.length > 0) {
+        s.pendingTodoEcho = false
+        const items = s.lastTodos.slice(0, cfg.maxEchoItems).map((t) => {
+          const mark = t?.status === 'completed' ? '☑' : t?.status === 'in_progress' ? '◐' : '☐'
+          return mark + ' ' + String(t?.content ?? '').slice(0, 60)
+        })
+        const more = s.lastTodos.length > cfg.maxEchoItems ? `\n（另有 ${s.lastTodos.length - cfg.maxEchoItems} 项）` : ''
+        info(`task-continuity: todo 回灌 ${s.lastTodos.length} 项（recitation）`)
+        return withMessage(
+          decision,
+          '[harness 状态复述] 你当前的 todo 清单（以此为准，不要重新从头追问已确认的信息）：\n' +
+            items.join('\n') + more,
+          'task-continuity'
+        )
       }
 
       // ── P1：todo 闹钟（A 无单 / B 停滞）──
