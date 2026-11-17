@@ -11,3 +11,4 @@
         staleStepThreshold: 5
         maxTodoInjectionsPerTurn: 1
         maxTodoInjectionsPerSession: 4
+        probePath: 'D:/Brain/workspace/bench/_task_continuity_loaded.json'
