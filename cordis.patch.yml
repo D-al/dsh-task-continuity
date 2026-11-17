@@ -1,0 +1,13 @@
+# Bundle patch：挂载 task-continuity（任务连续性）
+# P0 压缩存档（MemGPT/Hippo）+ P1 todo 闹钟（2609.38108/CoPE），注入优先级 P0 > P1
+- insert:
+    - id: task-continuity
+      name: dsh-task-continuity
+      config:
+        enabled: true
+        maxInitialChars: 2000
+        maxLatestChars: 1000
+        noTodoStepThreshold: 4
+        staleStepThreshold: 5
+        maxTodoInjectionsPerTurn: 1
+        maxTodoInjectionsPerSession: 4
